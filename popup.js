@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load initial state
   function loadState() {
     chrome.storage.local.get(
-      ["kickBearerToken", "followedChannels", "error"],
+      ["kickBearerToken", "followedChannels", "error", "user"],
       (data) => {
         if (!data.kickBearerToken) {
           statusDiv.innerHTML = '<a id="login-link">Log in to Kick.com</a>';
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
           statusDiv.textContent = `Error: ${data.error}`;
         } else {
           statusDiv.textContent = "";
-          logoutButton.textContent = `Log Out (${data.username || "User"})`;
+          logoutButton.textContent = `Log Out (${data.user.username || "User"})`;
           logoutButton.style.display = "block";
         }
         updateLiveStatuses(data.followedChannels || []);

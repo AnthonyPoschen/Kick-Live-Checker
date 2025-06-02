@@ -116,6 +116,10 @@ async function fetchFollowedChannelsAndCheckStatuses() {
     chrome.storage.local.set({ error: "Failed to fetch user data" });
     return;
   }
+	let user = { username, userId };
+	chrome.storage.local.set({user}, () => {
+    console.log("user saved:", user);
+  });
 
   // Step 2: Get followed channels
   let followedChannels = [];
@@ -131,8 +135,8 @@ async function fetchFollowedChannelsAndCheckStatuses() {
       sessionTitle: channel.session_title,
       profilePic: channel.channel.user.profilepic,
     }));
-    chrome.storage.local.set({ followedChannels, username }, () => {
-      console.log("Followed channels and username saved:", followedChannels, username);
+    chrome.storage.local.set({ followedChannels }, () => {
+      console.log("Followed channels:", followedChannels);
     });
 
     return followedChannels;
