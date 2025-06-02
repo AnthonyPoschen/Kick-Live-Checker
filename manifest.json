@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Kick.com Live Checker",
+  "name": "Kick Live Checker",
   "version": "1.0",
-  "description": "Check if followed Kick.com users are live",
-  "permissions": ["cookies", "storage", "tabs", "notifications", "alarms"],
+  "description": "Check if Kick.com streamer you follow are live",
+  "permissions": ["cookies", "storage", "alarms"],
   "host_permissions": ["https://kick.com/*"],
   "background": {
     "service_worker": "background.js"
@@ -12,6 +12,6 @@
     "default_popup": "popup.html"
   },
   "icons": {
-    "128": "icon.png"
+    "128": "icons/icon.png"
   }
 }
