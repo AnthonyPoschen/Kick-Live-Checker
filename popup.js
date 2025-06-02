@@ -3,6 +3,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const liveList = document.getElementById("live-list");
   const logoutButton = document.getElementById("logout");
 
+  chrome.runtime.sendMessage({ action: "fetchSessionToken" });
+
   // Load initial state
   function loadState() {
     chrome.storage.local.get(
@@ -13,8 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
           const loginLink = document.getElementById("login-link");
           loginLink.addEventListener("click", () => {
             chrome.runtime.sendMessage({ action: "initiateLogin" });
-            // Poll for token to update UI
-            pollForToken();
           });
           liveList.innerHTML = "";
           logoutButton.style.display = "none";
@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
           statusDiv.textContent = `Error: ${data.error}`;
         } else {
           statusDiv.textContent = "";
-          logoutButton.textContent = `Log Out (${data.user.username || "User"})`;
+          logoutButton.textContent = `Log Out (${data.user?.username || "User"})`;
           logoutButton.style.display = "block";
         }
         updateLiveStatuses(data.followedChannels || []);
@@ -34,27 +34,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadState();
 
-  // Poll for token to refresh UI after login
-  function pollForToken(attempts = 10, interval = 2000) {
-    let currentAttempt = 0;
-    const poll = setInterval(() => {
-      chrome.storage.local.get("kickBearerToken", (data) => {
-        currentAttempt++;
-        if (data.kickBearerToken) {
-          loadState();
-          clearInterval(poll);
-        } else if (currentAttempt >= attempts) {
-          statusDiv.textContent = "Login failed. Please try again.";
-          clearInterval(poll);
-        }
-      });
-    }, interval);
-  }
+  // Listen for updates from background script
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (
+      request.action === "tokenUpdated" ||
+      request.action === "channelsUpdated"
+    ) {
+      loadState();
+    }
+  });
 
   // Handle logout
   logoutButton.addEventListener("click", () => {
     chrome.storage.local.remove(
-      ["kickBearerToken", "followedChannels", "liveStatuses", "error"],
+      ["kickBearerToken", "followedChannels", "liveStatuses", "error", "user"],
       () => {
         loadState();
       },
@@ -77,7 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </a>
       `;
-      if (status.error) li.textContent += ` (Error: ${status.error})`;
       liveList.appendChild(li);
     });
   }

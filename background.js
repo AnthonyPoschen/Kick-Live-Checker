@@ -1,35 +1,21 @@
 chrome.runtime.onInstalled.addListener(() => {
-  extractSessionToken();
   chrome.alarms.create("checkLiveStatus", { periodInMinutes: 5 });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "checkLiveStatus") {
-    extractSessionToken();
     fetchFollowedChannelsAndCheckStatuses();
   }
 });
 
-// Monitor tab updates to detect login completion
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (
-    changeInfo.status === "complete" &&
-    tab.url.startsWith("https://kick.com")
-  ) {
-    // Check if the URL indicates a post-login page (e.g., homepage, dashboard)
-    if (tab.url === "https://kick.com/" || tab.url.includes("/dashboard")) {
-      console.log("Detected potential post-login page:", tab.url);
-      pollForSessionToken();
-    }
-  }
-});
-
-// Handle messages from popup (e.g., initiate login)
+// Handle messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "initiateLogin") {
     chrome.tabs.create({ url: "https://kick.com/login" }, (tab) => {
       console.log("Opened login tab:", tab.id);
     });
+  } else if (request.action === "fetchSessionToken") {
+    extractSessionToken();
   }
 });
 
@@ -40,16 +26,11 @@ function extractSessionToken() {
       if (cookie) {
         console.log("Session token found:", cookie.value);
         const decodedToken = decodeURIComponent(cookie.value);
-        chrome.storage.local.get("kickBearerToken", (result) => {
-          if (result.kickBearerToken !== decodedToken) {
-            console.log("Session token has changed. Updating storage.");
-            chrome.storage.local.set({ kickBearerToken: decodedToken }, () => {
-              console.log("Session token updated in storage");
-              fetchFollowedChannelsAndCheckStatuses();
-            });
-          } else {
-            console.log("Session token is already up-to-date.");
-          }
+        chrome.storage.local.set({ kickBearerToken: decodedToken }, () => {
+          console.log("Session token updated in storage");
+          // Notify popup of token update
+          chrome.runtime.sendMessage({ action: "tokenUpdated" });
+          fetchFollowedChannelsAndCheckStatuses();
         });
       } else {
         console.log("Session token not found");
@@ -58,33 +39,6 @@ function extractSessionToken() {
       }
     },
   );
-}
-
-// Poll for session token after login
-function pollForSessionToken(attempts = 5, interval = 2000) {
-  let currentAttempt = 0;
-  const poll = setInterval(() => {
-    chrome.cookies.get(
-      { url: "https://kick.com", name: "session_token" },
-      (cookie) => {
-        currentAttempt++;
-        if (cookie) {
-          console.log("Session token found after polling:", cookie.value);
-          chrome.storage.local.set({ kickBearerToken: cookie.value }, () => {
-            console.log("Session token saved after polling");
-            fetchFollowedChannelsAndCheckStatuses();
-          });
-          clearInterval(poll);
-        } else if (currentAttempt >= attempts) {
-          console.log("Session token not found after polling");
-          chrome.storage.local.set({
-            error: "Login failed or session token not set",
-          });
-          clearInterval(poll);
-        }
-      },
-    );
-  }, interval);
 }
 
 async function fetchFollowedChannelsAndCheckStatuses() {
@@ -116,8 +70,8 @@ async function fetchFollowedChannelsAndCheckStatuses() {
     chrome.storage.local.set({ error: "Failed to fetch user data" });
     return;
   }
-	let user = { username, userId };
-	chrome.storage.local.set({user}, () => {
+  let user = { username, userId };
+  chrome.storage.local.set({ user }, () => {
     console.log("user saved:", user);
   });
 
@@ -137,25 +91,14 @@ async function fetchFollowedChannelsAndCheckStatuses() {
     }));
     chrome.storage.local.set({ followedChannels }, () => {
       console.log("Followed channels:", followedChannels);
+      // Notify popup of channel update
+      chrome.runtime.sendMessage({ action: "channelsUpdated" });
     });
 
     return followedChannels;
   } catch (error) {
     console.error("Error fetching followed channels:", error);
   }
-
-  //
-  // // Notify if any followed channel is live
-  // results.forEach(({ channel, isLive }) => {
-  //   if (isLive) {
-  //     chrome.notifications.create({
-  //       type: "basic",
-  //       iconUrl: "icon.png",
-  //       title: "Kick.com Live",
-  //       message: `${channel} is now live!`,
-  //     });
-  //   }
-  // });
 }
 
 async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
